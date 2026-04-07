@@ -36,6 +36,10 @@ use Illuminate\Support\Facades\Route;
 
 // ── Public ────────────────────────────────────────────────────────────────────
 Route::post('/auth/login',                    [AuthController::class, 'login']);
+use App\Http\Controllers\Central\DebugController;
+
+Route::get('/ping', [DebugController::class, 'ping']);
+
 Route::post('/tenants/register',              [TenantController::class, 'register']);
 
 // Password Reset via OTP

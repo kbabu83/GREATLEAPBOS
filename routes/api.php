@@ -8,6 +8,7 @@ use App\Http\Controllers\Central\SettingsController;
 use App\Http\Controllers\Central\SubscriptionPlanController;
 use App\Http\Controllers\Central\TenantController;
 use App\Http\Controllers\Central\UserController;
+use App\Http\Controllers\Central\DebugController;
 use App\Http\Controllers\Tenant\UserPricingController;
 use App\Http\Controllers\Tenant\PaymentController;
 use App\Http\Controllers\Tenant\AttendancePolicyController;
@@ -36,7 +37,6 @@ use Illuminate\Support\Facades\Route;
 
 // ── Public ────────────────────────────────────────────────────────────────────
 Route::post('/auth/login',                    [AuthController::class, 'login']);
-use App\Http\Controllers\Central\DebugController;
 
 Route::get('/ping', [DebugController::class, 'ping']);
 

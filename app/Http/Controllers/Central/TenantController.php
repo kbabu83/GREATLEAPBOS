@@ -261,9 +261,6 @@ class TenantController extends Controller
 
     public function register(Request $request): JsonResponse
     {
-        // DEBUG: Test if endpoint is reachable
-        return response()->json(['message' => 'API is reachable'], 200);
-
         $validated = $request->validate([
             'tenant_name'                => 'required|string|max:255',
             'tenant_email'               => 'required|email|unique:tenants,email',
@@ -271,7 +268,7 @@ class TenantController extends Controller
             'admin_email'                => 'required|email',
             'admin_password'             => 'required|string|min:8|confirmed',
             'plan'                       => ['required', Rule::in([Tenant::PLAN_FREE, Tenant::PLAN_STARTER, Tenant::PLAN_PROFESSIONAL, Tenant::PLAN_ENTERPRISE])],
-            'number_of_users'            => 'required|integer|min:1|max:10000',
+            // 'number_of_users'            => 'required|integer|min:1|max:10000',
             'razorpay_payment_id'        => 'nullable|string',
             'razorpay_order_id'          => 'nullable|string',
             'razorpay_signature'         => 'nullable|string',
@@ -308,8 +305,8 @@ class TenantController extends Controller
         // Get the plan
         $plan = \App\Models\Central\SubscriptionPlan::where('slug', $validated['plan'])->firstOrFail();
 
-        // Check if plan can accommodate this many users
-        if (!$plan->canAccommodateUsers($validated['number_of_users'])) {
+        // Check if plan can accommodate this many users - Default to 1
+        if (!$plan->canAccommodateUsers($request->input('number_of_users', 1))) {
             return response()->json([
                 'message' => "Plan {$plan->name} supports maximum {$plan->max_users} users",
             ], 400);

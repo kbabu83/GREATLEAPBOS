@@ -428,19 +428,24 @@ class TenantController extends Controller
                 'plan'      => $validated['plan'],
             ], 201);
         } catch (\Exception $e) {
-            tenancy()->end();
-
-            // Cleanup on failure
-            $tenant->delete();
+            if (isset($tenant)) {
+                tenancy()->end();
+                // Cleanup on failure
+                $tenant->delete();
+            }
 
             \Log::error('Tenant registration failed', [
-                'email'   => $validated['tenant_email'],
+                'email'   => $request->input('tenant_email'),
                 'error'   => $e->getMessage(),
                 'trace'   => $e->getTraceAsString(),
             ]);
 
             return response()->json([
                 'message' => 'Registration failed: ' . $e->getMessage(),
+                'debug'   => [
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ]
             ], 500);
         }
     }

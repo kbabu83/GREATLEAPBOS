@@ -1,0 +1,17 @@
+[0;1;32m●[0m php8.3-fpm.service - The PHP 8.3 FastCGI Process Manager
+     Loaded: loaded (]8;;file://greatleap/usr/lib/systemd/system/php8.3-fpm.service/usr/lib/systemd/system/php8.3-fpm.service]8;;; [0;1;32menabled[0m; preset: [0;1;32menabled[0m)
+     Active: [0;1;32mactive (running)[0m since Mon 2026-04-06 08:51:09 UTC; 3min 48s ago
+       Docs: ]8;;man:php-fpm8.3(8)man:php-fpm8.3(8)]8;;
+    Process: 98780 ExecStartPost=/usr/lib/php/php-fpm-socket-helper install /run/php/php-fpm.sock /etc/php/8.3/fpm/pool.d/www.conf 83 (code=exited, status=0/SUCCESS)
+   Main PID: 98777 (php-fpm8.3)
+     Status: "[0;1;36mProcesses active: 0, idle: 2, Requests: 7, slow: 0, Traffic: 0req/sec[0m"
+      Tasks: 3 (limit: 2315)
+     Memory: 29.4M (peak: 31.1M)
+        CPU: 472ms
+     CGroup: /system.slice/php8.3-fpm.service
+             ├─[0;38;5;245m98777 "php-fpm: master process (/etc/php/8.3/fpm/php-fpm.conf)"[0m
+             ├─[0;38;5;245m98778 "php-fpm: pool www"[0m
+             └─[0;38;5;245m98779 "php-fpm: pool www"[0m
+
+Apr 06 08:51:09 greatleap systemd[1]: Starting php8.3-fpm.service - The PHP 8.3 FastCGI Process Manager...
+Apr 06 08:51:09 greatleap systemd[1]: Started php8.3-fpm.service - The PHP 8.3 FastCGI Process Manager.

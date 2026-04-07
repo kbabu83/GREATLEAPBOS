@@ -1,0 +1,143 @@
+# Great Leap App - Setup & Testing Checklist
+# ============================================
+
+## ✅ Before You Start
+- [ ] npm installed (check: npm --version)
+- [ ] Node.js installed (check: node --version)
+- [ ] You're in project directory: /Users/user1/Desktop/great-leap-app01
+
+## ✅ Installation
+- [ ] Run: npm install
+- [ ] Wait for completion (2-3 minutes)
+- [ ] Check for errors
+
+## ✅ Development Server
+- [ ] Run: npm run dev
+- [ ] Should show: "Local: http://localhost:5173/"
+- [ ] Server stays running (don't close terminal)
+
+## ✅ Testing - Landing Page
+- [ ] Open browser to: http://localhost:5173/
+- [ ] Page loads without white screen
+- [ ] Logo "⚡ Great Leap" visible in top left
+- [ ] Navigation menu visible (Features, How It Works, Benefits)
+- [ ] Hero section shows headline
+- [ ] All 9 sections visible when scrolling
+- [ ] "Get Started" button visible
+- [ ] "Login" button visible in header
+- [ ] Smooth scroll animations work
+- [ ] Icons render correctly (checkmarks, lightning, etc.)
+- [ ] Open DevTools (F12) - Console clean (no errors)
+
+## ✅ Testing - Signup Flow
+- [ ] Click "Get Started" button
+- [ ] Navigate to http://localhost:5173/signup
+- [ ] Page loads (Step 1: Company Details)
+- [ ] Can type in Company Name field
+- [ ] Can type in Company Email field
+- [ ] Can type in Subdomain field
+- [ ] "Check Availability" button works
+- [ ] "Next" button active
+- [ ] Error messages appear for empty fields
+- [ ] Fill Step 1 completely
+- [ ] Click Next → Go to Step 2
+- [ ] Fill admin name
+- [ ] Fill admin email
+- [ ] Fill password (8+ chars)
+- [ ] Fill confirm password
+- [ ] Errors show if passwords don't match
+- [ ] Click Next → Go to Step 3
+- [ ] See 3 plan options (Free, Starter, Pro)
+- [ ] Can select each plan
+- [ ] Click Next → Go to Step 4
+- [ ] See confirmation message
+- [ ] See company details summary
+- [ ] Check localStorage has token:
+    - Open DevTools (F12)
+    - Go to Application > LocalStorage
+    - Verify: auth_token, user, tenant_id exist
+
+## ✅ Testing - Login Page
+- [ ] Visit: http://localhost:5173/login
+- [ ] Page loads with login form
+- [ ] Can type email
+- [ ] Can type password
+- [ ] "Remember me" checkbox visible
+- [ ] "Forgot password?" link visible
+- [ ] Demo credentials shown (if applicable)
+- [ ] "Sign up here" link visible
+- [ ] Try invalid credentials
+- [ ] See error message
+- [ ] Check Network tab for API call
+
+## ✅ Testing - Protected Routes
+- [ ] With valid token in localStorage:
+    - [ ] Can access http://localhost:5173/app/dashboard
+    - [ ] Dashboard loads
+- [ ] Delete auth_token from localStorage
+- [ ] Try to access http://localhost:5173/app/dashboard
+- [ ] Should redirect to /login
+- [ ] Verify auth header in API requests:
+    - [ ] Open DevTools Network tab
+    - [ ] Make API call
+    - [ ] Check headers for "Authorization: Bearer {token}"
+
+## ✅ Testing - Responsive Design
+- [ ] Open DevTools (F12)
+- [ ] Press Cmd+Shift+M (toggle device toolbar)
+- [ ] Test on Mobile (375px):
+    - [ ] Landing page readable
+    - [ ] Buttons accessible
+    - [ ] No horizontal scroll
+    - [ ] Navigation adapted
+- [ ] Test on Tablet (768px):
+    - [ ] Content centered
+    - [ ] Images responsive
+- [ ] Test on Desktop (1280px):
+    - [ ] Two-column layout
+    - [ ] All sections visible
+
+## ✅ Testing - Console & Performance
+- [ ] Open DevTools (F12)
+- [ ] Go to Console tab
+- [ ] No red errors
+- [ ] No yellow warnings about icons
+- [ ] Go to Network tab
+- [ ] All images load (green checkmarks)
+- [ ] No 404 errors
+- [ ] API calls return 200 status
+
+## ✅ Testing - Navigation
+- [ ] On landing page, click navigation links:
+    - [ ] "Features" scrolls to features section
+    - [ ] "How It Works" scrolls to how-it-works section
+    - [ ] "Benefits" scrolls to benefits section
+- [ ] Click "Login" button → redirects to /login
+- [ ] Click "Get Started" → redirects to /signup
+- [ ] Click logo on signup/login → redirects to /
+
+## ✅ Final Verification
+- [ ] All main flows work (signup/login/dashboard)
+- [ ] Console clean (no errors)
+- [ ] No white screen
+- [ ] Icons render
+- [ ] Responsive on mobile
+- [ ] Token persists in localStorage
+- [ ] Protected routes enforce auth
+- [ ] API calls work
+
+## ✅ Summary
+If all items above are checked ✅, your implementation is:
+- ✅ COMPLETE
+- ✅ WORKING
+- ✅ READY FOR FURTHER DEVELOPMENT
+
+## 📞 Next Steps After Testing
+1. Test API endpoints with actual backend
+2. Configure email (Amazon SES)
+3. Test payment integration (Razorpay)
+4. Deploy to production
+
+---
+Date: 2026-04-04
+Status: Ready for Testing ✅

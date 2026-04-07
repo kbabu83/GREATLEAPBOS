@@ -261,6 +261,9 @@ class TenantController extends Controller
 
     public function register(Request $request): JsonResponse
     {
+        // DEBUG: Test if endpoint is reachable
+        return response()->json(['message' => 'API is reachable'], 200);
+
         $validated = $request->validate([
             'tenant_name'                => 'required|string|max:255',
             'tenant_email'               => 'required|email|unique:tenants,email',

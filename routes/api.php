@@ -40,6 +40,11 @@ Route::post('/auth/login',                    [AuthController::class, 'login']);
 
 Route::get('/ping', [DebugController::class, 'ping']);
 
+Route::get('/clear-cache', function() {
+    \Illuminate\Support\Facades\Artisan::call('optimize:clear');
+    return response()->json(['message' => 'Cache cleared successfully']);
+});
+
 Route::post('/tenants/register',              [TenantController::class, 'register']);
 
 // Password Reset via OTP

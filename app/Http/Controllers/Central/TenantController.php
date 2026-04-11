@@ -261,7 +261,104 @@ class TenantController extends Controller
 
     public function register(Request $request): JsonResponse
     {
-        return response()->json(['message' => 'Controller is loading correctly'], 200);
+        $validated = $request->validate([
+            'tenant_name'      => 'required|string|max:255',
+            'tenant_email'     => 'required|email',
+            'admin_name'       => 'required|string|max:255',
+            'admin_email'      => 'required|email|unique:users,email|unique:tenants,email',
+            'admin_password'   => 'required|string|min:8|confirmed',
+            'plan'             => ['required', Rule::in([Tenant::PLAN_FREE, Tenant::PLAN_STARTER, Tenant::PLAN_PROFESSIONAL, Tenant::PLAN_ENTERPRISE])],
+            'number_of_users'  => 'required|integer|min:1',
+            // Allow optional payment fields
+            'razorpay_payment_id' => 'nullable|string',
+            'razorpay_order_id'   => 'nullable|string',
+            'razorpay_signature'  => 'nullable|string',
+        ]);
+
+        // Generate unique subdomain from tenant name
+        $subdomain = Str::slug($validated['tenant_name']);
+        
+        $originalSubdomain = $subdomain;
+        $counter = 1;
+        while (Tenant::whereHas('domains', function ($q) use ($subdomain) {
+            $q->where('domain', $subdomain . '.' . env('CENTRAL_DOMAIN', 'greatlap.local'));
+        })->exists()) {
+            $subdomain = $originalSubdomain . '-' . $counter;
+            $counter++;
+        }
+
+        // Create tenant with UUID as ID
+        $tenant = Tenant::create([
+            'id'     => Str::uuid(),
+            'name'   => $validated['tenant_name'],
+            'email'  => $validated['admin_email'],
+            'plan'   => $validated['plan'],
+            'status' => Tenant::STATUS_ACTIVE,
+        ]);
+
+        // Create domain entry
+        $domain = $subdomain . '.' . env('CENTRAL_DOMAIN', 'greatlap.local');
+        $tenant->domains()->create([
+            'domain' => $domain,
+        ]);
+
+        // Initialize tenancy context - this creates the tenant database
+        tenancy()->initialize($tenant);
+
+        try {
+            // Run tenant migrations to create tenant database tables
+            \Illuminate\Support\Facades\Artisan::call('migrate', [
+                '--path' => 'database/migrations/tenant',
+                '--force' => true,
+            ]);
+
+            // Create admin user IN TENANT DATABASE
+            $user = User::create([
+                'name'              => $validated['admin_name'],
+                'email'             => $validated['admin_email'],
+                'password'          => Hash::make($validated['admin_password']),
+                'role'              => 'tenant_admin',
+                'is_active'         => true,
+                'email_verified_at' => now(), 
+            ]);
+
+            // End tenancy context
+            tenancy()->end();
+        } catch (\Exception $e) {
+            tenancy()->end();
+            $tenant->delete();
+
+            \Log::error('Tenant creation failed', [
+                'email'   => $validated['admin_email'],
+                'error'   => $e->getMessage(),
+                'trace'   => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to create tenant: ' . $e->getMessage(),
+            ], 500);
+        }
+
+        // Create subscription with selected plan
+        $plan = SubscriptionPlan::where('slug', $validated['plan'])->first();
+        if ($plan) {
+            $tenant->subscription()->create([
+                'plan_id'  => $plan->id,
+                'status'   => 'active',
+                'started_at' => now(),
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Tenant account created successfully.',
+            'tenant'  => $this->formatTenant($tenant->fresh('domains')),
+            'admin'   => [
+                'name'  => $user->name,
+                'email' => $user->email,
+                'role'  => 'Tenant Admin',
+            ],
+            'login_url' => url("/login"),
+        ], 201);
     }
 
     private function formatTenant(Tenant $tenant): array

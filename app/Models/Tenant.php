@@ -60,4 +60,13 @@ class Tenant extends BaseTenant implements TenantWithDatabase
             default => 'unknown',
         };
     }
+
+    /**
+     * Get the subscription for this tenant.
+     * Note: This hits the tenant database.
+     */
+    public function subscription()
+    {
+        return $this->hasOne(\App\Models\Tenant\Subscription::class, 'tenant_id', 'id');
+    }
 }

@@ -322,31 +322,37 @@ class TenantController extends Controller
                 'email_verified_at' => now(), 
             ]);
 
+            // Create subscription with selected plan inside the tenant database context
+            $plan = SubscriptionPlan::where('slug', $validated['plan'])->first();
+            if ($plan) {
+                // Ensure we use the tenant connection for subscription creation
+                $tenant->subscription()->create([
+                    'id'            => Str::uuid(),
+                    'tenant_id'     => $tenant->id,
+                    'plan_id'       => $plan->id,
+                    'billing_cycle' => 'monthly',
+                    'current_price' => $plan->monthly_price ?? 0,
+                    'status'        => 'active',
+                    'trial_ends_at' => now()->addDays(14),
+                    'started_at'    => now(),
+                ]);
+            }
+
             // End tenancy context
             tenancy()->end();
         } catch (\Exception $e) {
             tenancy()->end();
             $tenant->delete();
 
-            \Log::error('Tenant creation failed', [
+            \Log::error('Tenant registration failed at database creation level', [
                 'email'   => $validated['admin_email'],
                 'error'   => $e->getMessage(),
                 'trace'   => $e->getTraceAsString(),
             ]);
 
             return response()->json([
-                'message' => 'Failed to create tenant: ' . $e->getMessage(),
+                'message' => 'Failed to finalize registration: ' . $e->getMessage(),
             ], 500);
-        }
-
-        // Create subscription with selected plan
-        $plan = SubscriptionPlan::where('slug', $validated['plan'])->first();
-        if ($plan) {
-            $tenant->subscription()->create([
-                'plan_id'  => $plan->id,
-                'status'   => 'active',
-                'started_at' => now(),
-            ]);
         }
 
         return response()->json([

@@ -39,6 +39,7 @@ use Illuminate\Support\Facades\Route;
 Route::post('/auth/login',                    [AuthController::class, 'login']);
 
 Route::get('/ping', [DebugController::class, 'ping']);
+Route::get('/diag/logs', [DebugController::class, 'getLogs']);
 
 Route::get('/clear-cache', function() {
     \Illuminate\Support\Facades\Artisan::call('optimize:clear');

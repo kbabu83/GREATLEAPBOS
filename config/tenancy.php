@@ -13,6 +13,7 @@ return [
      */
     'central_domains' => [
         env('CENTRAL_DOMAIN', 'greatlap.local'),
+        '168.144.67.229',
         'localhost',
         '127.0.0.1',
     ],

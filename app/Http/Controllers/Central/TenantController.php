@@ -412,6 +412,11 @@ class TenantController extends Controller
 
             return response()->json([
                 'message' => 'Registration failed: ' . $e->getMessage(),
+                'debug' => [
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ],
+                'status' => 'error'
             ], 500);
         }
     }

@@ -38,8 +38,11 @@ use Illuminate\Support\Facades\Route;
 // ── Public ────────────────────────────────────────────────────────────────────
 Route::post('/auth/login',                    [AuthController::class, 'login']);
 
-Route::get('/ping', [DebugController::class, 'ping']);
-Route::get('/diag/logs', [DebugController::class, 'getLogs']);
+Route::get('/ping', [\App\Http\Controllers\Central\DebugController::class, 'ping']);
+Route::get('/diag/logs', [\App\Http\Controllers\Central\DebugController::class, 'getLogs']);
+Route::get('/diag/direct', function() {
+    return response()->json(['status' => 'OK', 'engine' => 'resilient-closure']);
+});
 
 Route::get('/clear-cache', function() {
     \Illuminate\Support\Facades\Artisan::call('optimize:clear');

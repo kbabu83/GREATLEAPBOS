@@ -10,8 +10,8 @@ class DebugController extends Controller
     public function ping(): JsonResponse
     {
         return response()->json([
-            'message' => 'Pong!',
-            'status' => 'Server is responding to new routes',
+            'message' => 'Pong - Deployment Verifier V1',
+            'status' => 'Checking if GitHub push reached the server',
             'time' => now()->toDateTimeString(),
         ]);
     }

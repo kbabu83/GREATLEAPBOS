@@ -51,6 +51,8 @@ class TenantController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        \Log::info('Admin tenant creation started', ['data' => $request->except(['admin_password'])]);
+
         $validated = $request->validate([
             'company_name'  => 'required|string|max:255',
             'admin_name'    => 'required|string|max:255',
@@ -59,26 +61,43 @@ class TenantController extends Controller
             'plan'          => ['required', Rule::in([Tenant::PLAN_FREE, Tenant::PLAN_STARTER, Tenant::PLAN_PROFESSIONAL, Tenant::PLAN_ENTERPRISE])],
         ]);
 
-        // Create tenant with UUID as ID
-        $tenant = Tenant::create([
-            'id'     => \Illuminate\Support\Str::uuid(),
-            'name'   => $validated['company_name'],
-            'email'  => $validated['admin_email'],
-            'plan'   => $validated['plan'],
-            'status' => Tenant::STATUS_TRIAL,
-        ]);
-
-        // Create domain entry
-        $domain = env('CENTRAL_DOMAIN', 'greatlap.local');
-        $tenant->domains()->create([
-            'domain' => $domain,
-        ]);
-
-        // Initialize tenancy context - this creates the tenant database
-        tenancy()->initialize($tenant);
-
         try {
+            // Generate unique subdomain from company name
+            $subdomain = Str::slug($validated['company_name']);
+            $originalSubdomain = $subdomain;
+            $counter = 1;
+            
+            \Log::info('Generating unique subdomain for admin creation', ['base' => $subdomain]);
+            
+            while (\Stancl\Tenancy\Database\Models\Domain::where('domain', $subdomain . '.' . env('CENTRAL_DOMAIN', 'greatlap.local'))->exists()) {
+                $subdomain = $originalSubdomain . '-' . $counter;
+                $counter++;
+            }
+            
+            $fullDomain = $subdomain . '.' . env('CENTRAL_DOMAIN', 'greatlap.local');
+            \Log::info('Subdomain determined for admin creation', ['domain' => $fullDomain]);
+
+            // Create tenant with UUID as ID
+            $tenant = Tenant::create([
+                'id'     => Str::uuid(),
+                'name'   => $validated['company_name'],
+                'email'  => $validated['admin_email'],
+                'plan'   => $validated['plan'],
+                'status' => Tenant::STATUS_TRIAL,
+            ]);
+
+            // Create domain entry
+            $tenant->domains()->create([
+                'domain' => $fullDomain,
+            ]);
+
+            \Log::info('Tenant and domain records created', ['tenant_id' => $tenant->id]);
+
+            // Initialize tenancy context - this creates the tenant database
+            tenancy()->initialize($tenant);
+
             // Run tenant migrations to create tenant database tables
+            \Log::info('Running tenant migrations');
             \Illuminate\Support\Facades\Artisan::call('migrate', [
                 '--path' => 'database/migrations/tenant',
                 '--force' => true,
@@ -88,51 +107,63 @@ class TenantController extends Controller
             $user = User::create([
                 'name'              => $validated['admin_name'],
                 'email'             => $validated['admin_email'],
-                'password'          => $validated['admin_password'],
+                'password'          => Hash::make($validated['admin_password']),
                 'role'              => 'tenant_admin',
                 'is_active'         => true,
-                'email_verified_at' => now(), // Skip email verification
+                'email_verified_at' => now(),
             ]);
+
+            \Log::info('Admin user created in tenant database');
+
+            // Create subscription record
+            $plan = SubscriptionPlan::where('slug', $validated['plan'])->first();
+            if ($plan) {
+                $tenant->subscription()->create([
+                    'id'            => Str::uuid(),
+                    'tenant_id'     => $tenant->id,
+                    'plan_id'       => $plan->id,
+                    'billing_cycle' => 'monthly',
+                    'current_price' => $plan->monthly_price ?? 0,
+                    'status'        => 'active',
+                    'trial_ends_at' => now()->addDays(14),
+                ]);
+                \Log::info('Subscription record created');
+            }
 
             // End tenancy context
             tenancy()->end();
+
+            return response()->json([
+                'message' => 'Tenant account created successfully.',
+                'tenant'  => $this->formatTenant($tenant->fresh('domains')),
+                'admin'   => [
+                    'name'  => $user->name,
+                    'email' => $user->email,
+                    'role'  => 'Tenant Admin',
+                ],
+                'login_url' => url("/login"),
+            ], 201);
+
         } catch (\Exception $e) {
-            tenancy()->end();
+            if (tenancy()->initialized) {
+                tenancy()->end();
+            }
 
-            // Cleanup on failure
-            $tenant->delete();
-
-            \Log::error('Tenant creation failed', [
-                'email'   => $validated['admin_email'],
+            \Log::error('Admin tenant creation failed', [
+                'email'   => $validated['admin_email'] ?? 'unknown',
                 'error'   => $e->getMessage(),
                 'trace'   => $e->getTraceAsString(),
             ]);
+
+            // Cleanup if possible
+            if (isset($tenant)) {
+                $tenant->delete();
+            }
 
             return response()->json([
                 'message' => 'Failed to create tenant: ' . $e->getMessage(),
             ], 500);
         }
-
-        // Create subscription with selected plan
-        $plan = SubscriptionPlan::where('slug', $validated['plan'])->first();
-        if ($plan) {
-            $tenant->subscription()->create([
-                'plan_id'  => $plan->id,
-                'status'   => 'active',
-                'started_at' => now(),
-            ]);
-        }
-
-        return response()->json([
-            'message' => 'Tenant account created successfully. Admin can now login.',
-            'tenant'  => $this->formatTenant($tenant->fresh('domains')),
-            'admin'   => [
-                'name'  => $user->name,
-                'email' => $user->email,
-                'role'  => 'Tenant Admin',
-            ],
-            'login_url' => url("/login"),
-        ], 201);
     }
 
     public function show(string $id): JsonResponse
@@ -261,56 +292,67 @@ class TenantController extends Controller
 
     public function register(Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            'tenant_name'      => 'required|string|max:255',
-            'tenant_email'     => 'required|email',
-            'admin_name'       => 'required|string|max:255',
-            'admin_email'      => 'required|email|unique:users,email|unique:tenants,email',
-            'admin_password'   => 'required|string|min:8|confirmed',
-            'plan'             => ['required', Rule::in([Tenant::PLAN_FREE, Tenant::PLAN_STARTER, Tenant::PLAN_PROFESSIONAL, Tenant::PLAN_ENTERPRISE])],
-            'number_of_users'  => 'required|integer|min:1',
-            // Allow optional payment fields
-            'razorpay_payment_id' => 'nullable|string',
-            'razorpay_order_id'   => 'nullable|string',
-            'razorpay_signature'  => 'nullable|string',
-        ]);
-
-        // Generate unique subdomain from tenant name
-        $subdomain = Str::slug($validated['tenant_name']);
-        
-        $originalSubdomain = $subdomain;
-        $counter = 1;
-        while (Tenant::whereHas('domains', function ($q) use ($subdomain) {
-            $q->where('domain', $subdomain . '.' . env('CENTRAL_DOMAIN', 'greatlap.local'));
-        })->exists()) {
-            $subdomain = $originalSubdomain . '-' . $counter;
-            $counter++;
-        }
-
-        // Create tenant with UUID as ID
-        $tenant = Tenant::create([
-            'id'     => Str::uuid(),
-            'name'   => $validated['tenant_name'],
-            'email'  => $validated['admin_email'],
-            'plan'   => $validated['plan'],
-            'status' => Tenant::STATUS_ACTIVE,
-        ]);
-
-        // Create domain entry
-        $domain = $subdomain . '.' . env('CENTRAL_DOMAIN', 'greatlap.local');
-        $tenant->domains()->create([
-            'domain' => $domain,
-        ]);
-
-        // Initialize tenancy context - this creates the tenant database
-        tenancy()->initialize($tenant);
+        \Log::info('Public tenant registration started', ['data' => $request->except(['admin_password', 'admin_password_confirmation'])]);
 
         try {
-            // Run tenant migrations to create tenant database tables
+            $validated = $request->validate([
+                'tenant_name'      => 'required|string|max:255',
+                'tenant_email'     => 'required|email',
+                'admin_name'       => 'required|string|max:255',
+                'admin_email'      => 'required|email|unique:users,email|unique:tenants,email',
+                'admin_password'   => 'required|string|min:8|confirmed',
+                'plan'             => ['required', Rule::in([Tenant::PLAN_FREE, Tenant::PLAN_STARTER, Tenant::PLAN_PROFESSIONAL, Tenant::PLAN_ENTERPRISE])],
+                'number_of_users'  => 'required|integer|min:1',
+                // Allow optional payment fields
+                'razorpay_payment_id' => 'nullable|string',
+                'razorpay_order_id'   => 'nullable|string',
+                'razorpay_signature'  => 'nullable|string',
+            ]);
+            
+            \Log::info('Public registration validation passed');
+
+            // Generate unique subdomain from tenant name
+            $subdomain = Str::slug($validated['tenant_name']);
+            $originalSubdomain = $subdomain;
+            $counter = 1;
+            
+            \Log::info('Generating unique subdomain for public registration', ['base' => $subdomain]);
+            
+            while (\Stancl\Tenancy\Database\Models\Domain::where('domain', $subdomain . '.' . env('CENTRAL_DOMAIN', 'greatlap.local'))->exists()) {
+                $subdomain = $originalSubdomain . '-' . $counter;
+                $counter++;
+            }
+            
+            $fullDomain = $subdomain . '.' . env('CENTRAL_DOMAIN', 'greatlap.local');
+            \Log::info('Subdomain determined for public registration', ['domain' => $fullDomain]);
+
+            // Create tenant with UUID as ID
+            $tenant = Tenant::create([
+                'id'     => Str::uuid(),
+                'name'   => $validated['tenant_name'],
+                'email'  => $validated['admin_email'],
+                'plan'   => $validated['plan'],
+                'status' => Tenant::STATUS_ACTIVE,
+            ]);
+
+            // Create domain entry
+            $tenant->domains()->create([
+                'domain' => $fullDomain,
+            ]);
+
+            \Log::info('Tenant and domain records created', ['tenant_id' => $tenant->id]);
+
+            // Initialize tenancy context
+            tenancy()->initialize($tenant);
+            \Log::info('Tenancy context initialized');
+
+            // Run tenant migrations
+            \Log::info('Running tenant migrations');
             \Illuminate\Support\Facades\Artisan::call('migrate', [
                 '--path' => 'database/migrations/tenant',
                 '--force' => true,
             ]);
+            \Log::info('Tenant migrations finished');
 
             // Create admin user IN TENANT DATABASE
             $user = User::create([
@@ -321,11 +363,11 @@ class TenantController extends Controller
                 'is_active'         => true,
                 'email_verified_at' => now(), 
             ]);
+            \Log::info('Admin user created in tenant database');
 
-            // Create subscription with selected plan inside the tenant database context
+            // Create subscription record
             $plan = SubscriptionPlan::where('slug', $validated['plan'])->first();
             if ($plan) {
-                // Ensure we use the tenant connection for subscription creation
                 $tenant->subscription()->create([
                     'id'            => Str::uuid(),
                     'tenant_id'     => $tenant->id,
@@ -334,37 +376,44 @@ class TenantController extends Controller
                     'current_price' => $plan->monthly_price ?? 0,
                     'status'        => 'active',
                     'trial_ends_at' => now()->addDays(14),
-                    'started_at'    => now(),
                 ]);
+                \Log::info('Subscription record created');
             }
 
             // End tenancy context
             tenancy()->end();
-        } catch (\Exception $e) {
-            tenancy()->end();
-            $tenant->delete();
+            \Log::info('Tenancy context closed');
 
-            \Log::error('Tenant registration failed at database creation level', [
-                'email'   => $validated['admin_email'],
+            return response()->json([
+                'message' => 'Tenant account created successfully.',
+                'tenant'  => $this->formatTenant($tenant->fresh('domains')),
+                'admin'   => [
+                    'name'  => $user->name,
+                    'email' => $user->email,
+                    'role'  => 'Tenant Admin',
+                ],
+                'login_url' => url("/login"),
+            ], 201);
+
+        } catch (\Exception $e) {
+            if (tenancy()->initialized) {
+                tenancy()->end();
+            }
+            
+            if (isset($tenant)) {
+                $tenant->delete();
+            }
+
+            \Log::error('Public tenant registration failed', [
+                'email'   => $validated['admin_email'] ?? 'unknown',
                 'error'   => $e->getMessage(),
                 'trace'   => $e->getTraceAsString(),
             ]);
 
             return response()->json([
-                'message' => 'Failed to finalize registration: ' . $e->getMessage(),
+                'message' => 'Registration failed: ' . $e->getMessage(),
             ], 500);
         }
-
-        return response()->json([
-            'message' => 'Tenant account created successfully.',
-            'tenant'  => $this->formatTenant($tenant->fresh('domains')),
-            'admin'   => [
-                'name'  => $user->name,
-                'email' => $user->email,
-                'role'  => 'Tenant Admin',
-            ],
-            'login_url' => url("/login"),
-        ], 201);
     }
 
     private function formatTenant(Tenant $tenant): array

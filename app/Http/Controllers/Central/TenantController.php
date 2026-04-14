@@ -93,15 +93,8 @@ class TenantController extends Controller
 
             \Log::info('Tenant and domain records created', ['tenant_id' => $tenant->id]);
 
-            // Initialize tenancy context - this creates the tenant database
+            // Initialize tenancy context
             tenancy()->initialize($tenant);
-
-            // Run tenant migrations to create tenant database tables
-            \Log::info('Running tenant migrations');
-            \Illuminate\Support\Facades\Artisan::call('migrate', [
-                '--path' => 'database/migrations/tenant',
-                '--force' => true,
-            ]);
 
             // Create admin user IN TENANT DATABASE (now that tenancy is initialized)
             $user = User::create([
@@ -344,15 +337,6 @@ class TenantController extends Controller
 
             // Initialize tenancy context
             tenancy()->initialize($tenant);
-            \Log::info('Tenancy context initialized');
-
-            // Run tenant migrations
-            \Log::info('Running tenant migrations');
-            \Illuminate\Support\Facades\Artisan::call('migrate', [
-                '--path' => 'database/migrations/tenant',
-                '--force' => true,
-            ]);
-            \Log::info('Tenant migrations finished');
 
             // Create admin user IN TENANT DATABASE
             $user = User::create([
